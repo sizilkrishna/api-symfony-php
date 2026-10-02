@@ -1,0 +1,45 @@
+{
+  "name": "sizilkrishna/api-symfony-php",
+  "description": "Symfony 7 REST API for the art catalogue project",
+  "type": "project",
+  "license": "proprietary",
+  "minimum-stability": "stable",
+  "prefer-stable": true,
+  "require": {
+    "php": ">=8.2",
+    "symfony/console": "^7.2",
+    "symfony/dotenv": "^7.2",
+    "symfony/framework-bundle": "^7.2",
+    "symfony/runtime": "^7.2",
+    "symfony/yaml": "^7.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "src/"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "symfony/runtime": true
+    },
+    "sort-packages": true
+  },
+  "scripts": {
+    "post-install-cmd": [
+      "@auto-scripts"
+    ],
+    "post-update-cmd": [
+      "@auto-scripts"
+    ],
+    "auto-scripts": {
+      "cache:clear": "symfony-cmd",
+      "assets:install": "symfony-cmd"
+    }
+  },
+  "extra": {
+    "symfony": {
+      "allow-contrib": false,
+      "require": "7.2"
+    }
+  }
+}
