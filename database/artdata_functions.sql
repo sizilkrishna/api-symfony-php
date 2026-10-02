@@ -1,73 +1,82 @@
 -- PostgreSQL Functions and Procedures for Art Catalogue Database
 
--- Setting up self-portraits of authors
--- Updates AUTHOR table with FIMAGE pointing to self-portrait artworks
-UPDATE "AUTHOR" a
-SET "FIMAGE" = (
-    SELECT "ID" FROM "ART" 
-    WHERE "AUTHOR_ID" = a."ID" 
-    AND LOWER("TITLE") LIKE '%self-portrait%'
-    LIMIT 1
-)
-WHERE EXISTS (
-    SELECT 1 FROM "ART" 
-    WHERE "AUTHOR_ID" = a."ID" 
-    AND LOWER("TITLE") LIKE '%self-portrait%'
-);
+-- Update feature images for artists and each taxonomy entry.
+CREATE OR REPLACE FUNCTION update_feature_images()
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Set author feature image to a self-portrait if found.
+    UPDATE "AUTHOR" a
+    SET "FIMAGE" = (
+        SELECT art."ID"
+        FROM "ART" art
+        WHERE art."AUTHOR_ID" = a."ID"
+          AND LOWER(art."TITLE") LIKE '%self-portrait%'
+        ORDER BY art."ID"
+        LIMIT 1
+    )
+    WHERE EXISTS (
+        SELECT 1
+        FROM "ART" art
+        WHERE art."AUTHOR_ID" = a."ID"
+          AND LOWER(art."TITLE") LIKE '%self-portrait%'
+    );
 
--- Update feature images for FORM category
--- Selects a random artwork for each form as the featured image
-UPDATE "FORM" f
-SET "FIMAGE" = (
-    SELECT "ID" FROM "ART" 
-    WHERE "FORM_ID" = f."ID" 
-    ORDER BY RANDOM() 
-    LIMIT 1
-)
-WHERE "FIMAGE" IS NULL OR "FIMAGE" = 0;
+    -- Update feature images for category tables.
+    UPDATE "FORM" f
+    SET "FIMAGE" = (
+        SELECT art."ID"
+        FROM "ART" art
+        WHERE art."FORM_ID" = f."ID"
+        ORDER BY RANDOM()
+        LIMIT 1
+    )
+    WHERE "FIMAGE" IS NULL OR "FIMAGE" = 0;
 
--- Update feature images for LOCATION category
-UPDATE "LOCATION" l
-SET "FIMAGE" = (
-    SELECT "ID" FROM "ART" 
-    WHERE "LOCATION_ID" = l."ID" 
-    ORDER BY RANDOM() 
-    LIMIT 1
-)
-WHERE "FIMAGE" IS NULL OR "FIMAGE" = 0;
+    UPDATE "LOCATION" l
+    SET "FIMAGE" = (
+        SELECT art."ID"
+        FROM "ART" art
+        WHERE art."LOCATION_ID" = l."ID"
+        ORDER BY RANDOM()
+        LIMIT 1
+    )
+    WHERE "FIMAGE" IS NULL OR "FIMAGE" = 0;
 
--- Update feature images for SCHOOL category
-UPDATE "SCHOOL" s
-SET "FIMAGE" = (
-    SELECT "ID" FROM "ART" 
-    WHERE "SCHOOL_ID" = s."ID" 
-    ORDER BY RANDOM() 
-    LIMIT 1
-)
-WHERE "FIMAGE" IS NULL OR "FIMAGE" = 0;
+    UPDATE "SCHOOL" s
+    SET "FIMAGE" = (
+        SELECT art."ID"
+        FROM "ART" art
+        WHERE art."SCHOOL_ID" = s."ID"
+        ORDER BY RANDOM()
+        LIMIT 1
+    )
+    WHERE "FIMAGE" IS NULL OR "FIMAGE" = 0;
 
--- Update feature images for TIMEFRAME category
-UPDATE "TIMEFRAME" t
-SET "FIMAGE" = (
-    SELECT "ID" FROM "ART" 
-    WHERE "TIMEFRAME_ID" = t."ID" 
-    ORDER BY RANDOM() 
-    LIMIT 1
-)
-WHERE "FIMAGE" IS NULL OR "FIMAGE" = 0;
+    UPDATE "TIMEFRAME" t
+    SET "FIMAGE" = (
+        SELECT art."ID"
+        FROM "ART" art
+        WHERE art."TIMEFRAME_ID" = t."ID"
+        ORDER BY RANDOM()
+        LIMIT 1
+    )
+    WHERE "FIMAGE" IS NULL OR "FIMAGE" = 0;
 
--- Update feature images for TYPE category
-UPDATE "TYPE" ty
-SET "FIMAGE" = (
-    SELECT "ID" FROM "ART" 
-    WHERE "TYPE_ID" = ty."ID" 
-    ORDER BY RANDOM() 
-    LIMIT 1
-)
-WHERE "FIMAGE" IS NULL OR "FIMAGE" = 0;
+    UPDATE "TYPE" ty
+    SET "FIMAGE" = (
+        SELECT art."ID"
+        FROM "ART" art
+        WHERE art."TYPE_ID" = ty."ID"
+        ORDER BY RANDOM()
+        LIMIT 1
+    )
+    WHERE "FIMAGE" IS NULL OR "FIMAGE" = 0;
+END;
+$$;
 
--- Query to get grouped values of categories by author
--- Returns distinct metadata associated with each author
+-- Query to get grouped metadata values by author.
 SELECT
     au."ID",
     au."AUTHOR",
@@ -89,7 +98,7 @@ GROUP BY au."ID", au."AUTHOR", au."BORN_DIED"
 HAVING COUNT(a."ID") > 0
 ORDER BY au."ID" ASC;
 
--- Stored function to get full-text search results
+-- Full-text search function for artworks.
 CREATE OR REPLACE FUNCTION search_artdata(
     search_query TEXT,
     page_num INT DEFAULT 1,
@@ -107,7 +116,10 @@ RETURNS TABLE(
     "SCHOOL" VARCHAR,
     "TYPE" VARCHAR,
     found_in VARCHAR
-) AS $$
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
 BEGIN
     RETURN QUERY
     SELECT
@@ -134,58 +146,43 @@ BEGIN
             a."LOCATION_ID",
             a."SCHOOL_ID",
             a."TYPE_ID",
-            CASE WHEN to_tsvector('english', coalesce(a."TITLE", '')) @@ plainto_tsquery('english', search_query) THEN 'TITLE' END AS matched_field
+            CASE
+                WHEN to_tsvector('english', coalesce(a."TITLE", '')) @@ plainto_tsquery('english', search_query)
+                    THEN 'TITLE'
+                WHEN to_tsvector('english', coalesce(a."TECHNIQUE", '')) @@ plainto_tsquery('english', search_query)
+                    THEN 'TECHNIQUE'
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM "AUTHOR" au
+                    WHERE au."ID" = a."AUTHOR_ID"
+                      AND to_tsvector('english', coalesce(au."AUTHOR", '')) @@ plainto_tsquery('english', search_query)
+                )
+                    THEN 'AUTHOR'
+                ELSE NULL
+            END AS matched_field
         FROM "ART" a
         WHERE to_tsvector('english', coalesce(a."TITLE", '') || ' ' || coalesce(a."TECHNIQUE", '') || ' ' || coalesce(a."URL", '')) @@ plainto_tsquery('english', search_query)
-        UNION ALL
-        SELECT
-            a."ID",
-            a."TITLE",
-            a."DATE",
-            a."TECHNIQUE",
-            a."URL",
-            a."AUTHOR_ID",
-            a."FORM_ID",
-            a."LOCATION_ID",
-            a."SCHOOL_ID",
-            a."TYPE_ID",
-            'TECHNIQUE' AS matched_field
-        FROM "ART" a
-        WHERE to_tsvector('english', coalesce(a."TECHNIQUE", '')) @@ plainto_tsquery('english', search_query)
-        UNION ALL
-        SELECT
-            a."ID",
-            a."TITLE",
-            a."DATE",
-            a."TECHNIQUE",
-            a."URL",
-            a."AUTHOR_ID",
-            a."FORM_ID",
-            a."LOCATION_ID",
-            a."SCHOOL_ID",
-            a."TYPE_ID",
-            'AUTHOR' AS matched_field
-        FROM "ART" a
-        WHERE EXISTS (
-            SELECT 1 FROM "AUTHOR" au
-            WHERE au."ID" = a."AUTHOR_ID"
-            AND to_tsvector('english', coalesce(au."AUTHOR", '')) @@ plainto_tsquery('english', search_query)
-        )
-    ) a
-    LEFT JOIN "AUTHOR" au ON a."AUTHOR_ID" = au."ID"
-    LEFT JOIN "FORM" f ON a."FORM_ID" = f."ID"
-    LEFT JOIN "LOCATION" l ON a."LOCATION_ID" = l."ID"
-    LEFT JOIN "SCHOOL" s ON a."SCHOOL_ID" = s."ID"
-    LEFT JOIN "TYPE" ty ON a."TYPE_ID" = ty."ID"
-    WHERE matched_field IS NOT NULL
-    GROUP BY a."ID", a."TITLE", a."DATE", a."TECHNIQUE", a."URL", au."AUTHOR", f."FORM", l."LOCATION", s."SCHOOL", ty."TYPE"
-    ORDER BY a."ID" ASC
-    OFFSET ((page_num - 1) * limit_num) ROWS
-    FETCH NEXT limit_num ROWS ONLY;
+           OR EXISTS (
+                SELECT 1
+                FROM "AUTHOR" au
+                WHERE au."ID" = a."AUTHOR_ID"
+                  AND to_tsvector('english', coalesce(au."AUTHOR", '')) @@ plainto_tsquery('english', search_query)
+            )
+    ) q
+    LEFT JOIN "AUTHOR" au ON q."AUTHOR_ID" = au."ID"
+    LEFT JOIN "FORM" f ON q."FORM_ID" = f."ID"
+    LEFT JOIN "LOCATION" l ON q."LOCATION_ID" = l."ID"
+    LEFT JOIN "SCHOOL" s ON q."SCHOOL_ID" = s."ID"
+    LEFT JOIN "TYPE" ty ON q."TYPE_ID" = ty."ID"
+    WHERE q.matched_field IS NOT NULL
+    GROUP BY q."ID", q."TITLE", q."DATE", q."TECHNIQUE", q."URL", au."AUTHOR", f."FORM", l."LOCATION", s."SCHOOL", ty."TYPE"
+    ORDER BY q."ID" ASC
+    OFFSET ((page_num - 1) * limit_num)
+    LIMIT limit_num;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$;
 
--- Stored function to get author statistics
+-- Stored function to get author statistics.
 CREATE OR REPLACE FUNCTION get_author_stats(author_id_param INT)
 RETURNS TABLE(
     author_name VARCHAR,
@@ -196,7 +193,10 @@ RETURNS TABLE(
     locations_count INT,
     timeframes_count INT,
     types_count INT
-) AS $$
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
 BEGIN
     RETURN QUERY
     SELECT
@@ -213,4 +213,4 @@ BEGIN
     WHERE au."ID" = author_id_param
     GROUP BY au."ID", au."AUTHOR", au."BORN_DIED";
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$;
