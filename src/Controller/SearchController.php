@@ -27,63 +27,64 @@ class SearchController
 
         $this->artDataService->logQuery('search', $keywords);
 
-        $countSql = "
+        $countSql = '
             SELECT COUNT(*) AS COUNT
-            FROM ARTDATA
-            WHERE to_tsvector('english', coalesce(TITLE, '') || ' ' || coalesce(TECHNIQUE, '') || ' ' || coalesce(AUTHOR, '') || ' ' || coalesce(FORM, '') || ' ' || coalesce(LOCATION, '') || ' ' || coalesce(SCHOOL, '') || ' ' || coalesce(TYPE, ''))
-                  @@ plainto_tsquery(:keyword)
-        ";
+            FROM "ART" a
+            WHERE to_tsvector(\'english\', coalesce(a."TITLE", \'\') || \' \' || coalesce(a."TECHNIQUE", \'\') || \' \' || coalesce(a."URL", \'\'))
+                @@ plainto_tsquery(\'english\', :keyword)
+        ';
 
-        $dataSql = "
+        $dataSql = '
             SELECT
-                ID,
-                TITLE,
-                DATE,
-                TECHNIQUE,
-                URL,
-                AUTHOR,
-                AUTHOR_ID,
-                BORN_DIED,
-                FORM,
-                FORM_ID,
-                LOCATION,
-                LOCATION_ID,
-                SCHOOL,
-                SCHOOL_ID,
-                TIMEFRAME,
-                TIMEFRAME_ID,
-                TYPE,
-                TYPE_ID,
-                CONCAT_WS(
-                    ',',
-                    CASE WHEN to_tsvector('english', coalesce(TITLE, '')) @@ plainto_tsquery(:keyword) THEN 'TITLE' END,
-                    CASE WHEN to_tsvector('english', coalesce(TECHNIQUE, '')) @@ plainto_tsquery(:keyword) THEN 'TECHNIQUE' END,
-                    CASE WHEN to_tsvector('english', coalesce(AUTHOR, '')) @@ plainto_tsquery(:keyword) THEN 'AUTHOR' END,
-                    CASE WHEN to_tsvector('english', coalesce(FORM, '')) @@ plainto_tsquery(:keyword) THEN 'FORM' END,
-                    CASE WHEN to_tsvector('english', coalesce(LOCATION, '')) @@ plainto_tsquery(:keyword) THEN 'LOCATION' END,
-                    CASE WHEN to_tsvector('english', coalesce(SCHOOL, '')) @@ plainto_tsquery(:keyword) THEN 'SCHOOL' END,
-                    CASE WHEN to_tsvector('english', coalesce(TYPE, '')) @@ plainto_tsquery(:keyword) THEN 'TYPE' END
-                ) AS FOUND_IN
-            FROM ARTDATA
-            WHERE to_tsvector('english', coalesce(TITLE, '') || ' ' || coalesce(TECHNIQUE, '') || ' ' || coalesce(AUTHOR, '') || ' ' || coalesce(FORM, '') || ' ' || coalesce(LOCATION, '') || ' ' || coalesce(SCHOOL, '') || ' ' || coalesce(TYPE, ''))
-                  @@ plainto_tsquery(:keyword)
-            ORDER BY ID ASC
+                a."ID",
+                a."TITLE",
+                a."DATE",
+                a."TECHNIQUE",
+                a."URL",
+                au."AUTHOR",
+                a."AUTHOR_ID",
+                au."BORN_DIED",
+                f."FORM",
+                a."FORM_ID",
+                l."LOCATION",
+                a."LOCATION_ID",
+                s."SCHOOL",
+                a."SCHOOL_ID",
+                t."TIMEFRAME",
+                a."TIMEFRAME_ID",
+                ty."TYPE",
+                a."TYPE_ID"
+            FROM "ART" a
+            LEFT JOIN "AUTHOR" au ON a."AUTHOR_ID" = au."ID"
+            LEFT JOIN "FORM" f ON a."FORM_ID" = f."ID"
+            LEFT JOIN "LOCATION" l ON a."LOCATION_ID" = l."ID"
+            LEFT JOIN "SCHOOL" s ON a."SCHOOL_ID" = s."ID"
+            LEFT JOIN "TIMEFRAME" t ON a."TIMEFRAME_ID" = t."ID"
+            LEFT JOIN "TYPE" ty ON a."TYPE_ID" = ty."ID"
+            WHERE to_tsvector(\'english\', coalesce(a."TITLE", \'\') || \' \' || coalesce(a."TECHNIQUE", \'\') || \' \' || coalesce(a."URL", \'\'))
+                @@ plainto_tsquery(\'english\', :keyword)
+            ORDER BY a."ID" ASC
             LIMIT :lim OFFSET :offset
-        ";
+        ';
 
         return $this->artDataService->jsonPaginated($countSql, $dataSql, [':keyword' => $keywords], $page, $limit);
     }
 
     #[Route('/random', name: 'api_random', methods: ['GET'])]
-    public function random(): JsonResponse
+    public function random(Request $request): JsonResponse
     {
-        return $this->artDataService->jsonPaginated(
-            "SELECT 1 AS COUNT",
-            'SELECT * FROM ARTDATA ORDER BY RANDOM() LIMIT :lim OFFSET :offset',
-            [],
-            1,
-            1
-        );
+        $page = max(1, (int) $request->query->get('page', 1));
+        $limit = max(1, (int) $request->query->get('limit', 1));
+
+        $countSql = 'SELECT COUNT(*) AS COUNT FROM "ART"';
+        $dataSql = '
+            SELECT *
+            FROM "ARTDATA"
+            ORDER BY RANDOM()
+            LIMIT :lim OFFSET :offset
+        ';
+
+        return $this->artDataService->jsonPaginated($countSql, $dataSql, [], $page, $limit);
     }
 
     #[Route('/logger', name: 'api_logger', methods: ['POST'])]
@@ -126,33 +127,39 @@ class SearchController
         $bindings = [];
 
         if ($author > 0) {
-            $conditions[] = 'AUTHOR_ID = :au';
+            $conditions[] = 'a."AUTHOR_ID" = :au';
             $bindings[':au'] = $author;
         }
         if ($form > 0) {
-            $conditions[] = 'FORM_ID = :fo';
+            $conditions[] = 'a."FORM_ID" = :fo';
             $bindings[':fo'] = $form;
         }
         if ($location > 0) {
-            $conditions[] = 'LOCATION_ID = :lo';
+            $conditions[] = 'a."LOCATION_ID" = :lo';
             $bindings[':lo'] = $location;
         }
         if ($school > 0) {
-            $conditions[] = 'SCHOOL_ID = :sc';
+            $conditions[] = 'a."SCHOOL_ID" = :sc';
             $bindings[':sc'] = $school;
         }
         if ($timeframe > 0) {
-            $conditions[] = 'TIMEFRAME_ID = :ti';
+            $conditions[] = 'a."TIMEFRAME_ID" = :ti';
             $bindings[':ti'] = $timeframe;
         }
         if ($type > 0) {
-            $conditions[] = 'TYPE_ID = :ty';
+            $conditions[] = 'a."TYPE_ID" = :ty';
             $bindings[':ty'] = $type;
         }
 
         $whereClause = implode(' AND ', $conditions);
-        $countSql = 'SELECT COUNT(*) AS COUNT FROM ARTDATA WHERE ' . $whereClause;
-        $dataSql = 'SELECT * FROM ARTDATA WHERE ' . $whereClause . ' ORDER BY ID ASC LIMIT :lim OFFSET :offset';
+        $countSql = 'SELECT COUNT(*) AS COUNT FROM "ART" a WHERE ' . $whereClause;
+        $dataSql = '
+            SELECT *
+            FROM "ARTDATA"
+            WHERE ' . $whereClause . '
+            ORDER BY "ID" ASC
+            LIMIT :lim OFFSET :offset
+        ';
 
         return $this->artDataService->jsonPaginated($countSql, $dataSql, $bindings, $page, $limit);
     }
@@ -164,8 +171,8 @@ class SearchController
         $limit = max(1, (int) $request->query->get('limit', 10));
 
         return $this->artDataService->jsonPaginated(
-            'SELECT COUNT(L.ID) AS COUNT FROM LOG_TABLE L',
-            'SELECT L.ID, L.CATEGORY, L.VALUE, L.IP FROM LOG_TABLE L ORDER BY L.ID DESC LIMIT :lim OFFSET :offset',
+            'SELECT COUNT(L."ID") AS COUNT FROM "LOG_TABLE" L',
+            'SELECT L."ID", L."CATEGORY", L."VALUE", L."IP" FROM "LOG_TABLE" L ORDER BY L."ID" DESC LIMIT :lim OFFSET :offset',
             [],
             $page,
             $limit
