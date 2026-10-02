@@ -27,8 +27,49 @@ class SearchController
 
         $this->artDataService->logQuery('search', $keywords);
 
-        $countSql = 'SELECT COUNT(*) AS COUNT FROM ARTDATA WHERE MATCH (TITLE) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (TECHNIQUE) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (AUTHOR) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (FORM) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (LOCATION) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (SCHOOL) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (TYPE) AGAINST (:keyword IN NATURAL LANGUAGE MODE)';
-        $dataSql = 'SELECT ID, TITLE, DATE, TECHNIQUE, URL, AUTHOR, AUTHOR_ID, BORN_DIED, FORM, FORM_ID, LOCATION, LOCATION_ID, SCHOOL, SCHOOL_ID, TIMEFRAME, TIMEFRAME_ID, TYPE, TYPE_ID, CONCAT_WS(",", CASE WHEN MATCH(TITLE) AGAINST (:keyword IN NATURAL LANGUAGE MODE) > 0 THEN "TITLE" END, CASE WHEN MATCH(TECHNIQUE) AGAINST (:keyword IN NATURAL LANGUAGE MODE) > 0 THEN "TECHNIQUE" END, CASE WHEN MATCH(AUTHOR) AGAINST (:keyword IN NATURAL LANGUAGE MODE) > 0 THEN "AUTHOR" END, CASE WHEN MATCH(FORM) AGAINST (:keyword IN NATURAL LANGUAGE MODE) > 0 THEN "FORM" END, CASE WHEN MATCH(LOCATION) AGAINST (:keyword IN NATURAL LANGUAGE MODE) > 0 THEN "LOCATION" END, CASE WHEN MATCH(SCHOOL) AGAINST (:keyword IN NATURAL LANGUAGE MODE) > 0 THEN "SCHOOL" END, CASE WHEN MATCH(TYPE) AGAINST (:keyword IN NATURAL LANGUAGE MODE) > 0 THEN "TYPE" END) AS FOUND_IN FROM ARTDATA WHERE MATCH (TITLE) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (TECHNIQUE) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (AUTHOR) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (FORM) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (LOCATION) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (SCHOOL) AGAINST (:keyword IN NATURAL LANGUAGE MODE) OR MATCH (TYPE) AGAINST (:keyword IN NATURAL LANGUAGE MODE) LIMIT :lim OFFSET :offset';
+        $countSql = "
+            SELECT COUNT(*) AS COUNT
+            FROM ARTDATA
+            WHERE to_tsvector('english', coalesce(TITLE, '') || ' ' || coalesce(TECHNIQUE, '') || ' ' || coalesce(AUTHOR, '') || ' ' || coalesce(FORM, '') || ' ' || coalesce(LOCATION, '') || ' ' || coalesce(SCHOOL, '') || ' ' || coalesce(TYPE, ''))
+                  @@ plainto_tsquery(:keyword)
+        ";
+
+        $dataSql = "
+            SELECT
+                ID,
+                TITLE,
+                DATE,
+                TECHNIQUE,
+                URL,
+                AUTHOR,
+                AUTHOR_ID,
+                BORN_DIED,
+                FORM,
+                FORM_ID,
+                LOCATION,
+                LOCATION_ID,
+                SCHOOL,
+                SCHOOL_ID,
+                TIMEFRAME,
+                TIMEFRAME_ID,
+                TYPE,
+                TYPE_ID,
+                CONCAT_WS(
+                    ',',
+                    CASE WHEN to_tsvector('english', coalesce(TITLE, '')) @@ plainto_tsquery(:keyword) THEN 'TITLE' END,
+                    CASE WHEN to_tsvector('english', coalesce(TECHNIQUE, '')) @@ plainto_tsquery(:keyword) THEN 'TECHNIQUE' END,
+                    CASE WHEN to_tsvector('english', coalesce(AUTHOR, '')) @@ plainto_tsquery(:keyword) THEN 'AUTHOR' END,
+                    CASE WHEN to_tsvector('english', coalesce(FORM, '')) @@ plainto_tsquery(:keyword) THEN 'FORM' END,
+                    CASE WHEN to_tsvector('english', coalesce(LOCATION, '')) @@ plainto_tsquery(:keyword) THEN 'LOCATION' END,
+                    CASE WHEN to_tsvector('english', coalesce(SCHOOL, '')) @@ plainto_tsquery(:keyword) THEN 'SCHOOL' END,
+                    CASE WHEN to_tsvector('english', coalesce(TYPE, '')) @@ plainto_tsquery(:keyword) THEN 'TYPE' END
+                ) AS FOUND_IN
+            FROM ARTDATA
+            WHERE to_tsvector('english', coalesce(TITLE, '') || ' ' || coalesce(TECHNIQUE, '') || ' ' || coalesce(AUTHOR, '') || ' ' || coalesce(FORM, '') || ' ' || coalesce(LOCATION, '') || ' ' || coalesce(SCHOOL, '') || ' ' || coalesce(TYPE, ''))
+                  @@ plainto_tsquery(:keyword)
+            ORDER BY ID ASC
+            LIMIT :lim OFFSET :offset
+        ";
 
         return $this->artDataService->jsonPaginated($countSql, $dataSql, [':keyword' => $keywords], $page, $limit);
     }
@@ -37,8 +78,8 @@ class SearchController
     public function random(): JsonResponse
     {
         return $this->artDataService->jsonPaginated(
-            "SELECT '1' AS COUNT",
-            'SELECT * FROM ARTDATA ORDER BY RAND() LIMIT :lim OFFSET :offset',
+            "SELECT 1 AS COUNT",
+            'SELECT * FROM ARTDATA ORDER BY RANDOM() LIMIT :lim OFFSET :offset',
             [],
             1,
             1
