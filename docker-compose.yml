@@ -1,0 +1,33 @@
+# Local / demo stack. For production inject real secrets via your platform.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: mgoart
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d mgoart"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "8080:80"
+    environment:
+      APP_ENV: prod
+      APP_SECRET: change-me
+      DATABASE_URL: postgresql://app:app@db:5432/mgoart?charset=utf8
+      LOGS_API_KEY: dev-key
+      RUN_MIGRATIONS: "1"
+      CORS_ALLOW_ORIGIN: '^https?://localhost(:[0-9]+)?$'
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

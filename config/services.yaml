@@ -7,16 +7,13 @@ services:
         resource: '../src/'
         exclude:
             - '../src/Kernel.php'
+            - '../src/Domain/'
+            - '../src/Http/Patterns.php'
+            - '../src/Http/QueryParams.php'
+            - '../src/Http/RequireApiKey.php'
 
-    App\Controller\:
-        resource: '../src/Controller/'
-        tags: ['controller.service_arguments']
-
-    App\Service\DatabaseService:
+    Doctrine\DBAL\Connection:
+        factory: ['App\Database\ConnectionFactory', 'create']
         arguments:
-            $dsn: '%env(DATABASE_DSN)%'
-            $user: '%env(DATABASE_USER)%'
-            $password: '%env(DATABASE_PASSWORD)%'
-
-    App\Service\ArtDataService:
-        public: true
+            $url: '%env(DATABASE_URL)%'
+            $statementTimeoutMs: '%env(int:DB_STATEMENT_TIMEOUT_MS)%'

@@ -1,8 +1,28 @@
 framework:
     secret: '%env(APP_SECRET)%'
-    router:
-        utf8: true
-        strict_requirements: null
     http_method_override: false
+    handle_all_throwables: true
+    php_errors:
+        log: true
     session:
         enabled: false
+
+    # Only these proxies may set X-Forwarded-* (client IP for rate limiting / logs).
+    trusted_proxies: '%env(TRUSTED_PROXIES)%'
+    trusted_headers: ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port', 'x-forwarded-prefix']
+
+    # State lives in cache.app (filesystem by default). With several app
+    # instances point cache.app at Redis so limits are shared between them.
+    rate_limiter:
+        api:
+            policy: sliding_window
+            limit: '%env(int:RATE_LIMIT_API_PER_MINUTE)%'
+            interval: '1 minute'
+        logger:
+            policy: sliding_window
+            limit: '%env(int:RATE_LIMIT_LOGGER_PER_MINUTE)%'
+            interval: '1 minute'
+
+when@test:
+    framework:
+        test: true

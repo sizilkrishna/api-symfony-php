@@ -7,39 +7,51 @@
   "prefer-stable": true,
   "require": {
     "php": ">=8.2",
+    "ext-ctype": "*",
+    "ext-mbstring": "*",
+    "ext-pdo": "*",
+    "ext-pdo_pgsql": "*",
+    "doctrine/dbal": "^4.2",
+    "nelmio/cors-bundle": "^2.5",
     "symfony/console": "^7.2",
     "symfony/dotenv": "^7.2",
     "symfony/framework-bundle": "^7.2",
+    "symfony/lock": "^7.2",
+    "symfony/monolog-bundle": "^3.10",
+    "symfony/rate-limiter": "^7.2",
     "symfony/runtime": "^7.2",
     "symfony/yaml": "^7.2"
+  },
+  "require-dev": {
+    "friendsofphp/php-cs-fixer": "^3.64",
+    "phpstan/phpstan": "^2.0",
+    "phpunit/phpunit": "^11.5"
   },
   "autoload": {
     "psr-4": {
       "App\\": "src/"
     }
   },
+  "autoload-dev": {
+    "psr-4": {
+      "App\\Tests\\": "tests/"
+    }
+  },
   "config": {
     "allow-plugins": {
       "symfony/runtime": true
     },
+    "optimize-autoloader": true,
+    "preferred-install": {
+      "*": "dist"
+    },
     "sort-packages": true
   },
   "scripts": {
-    "post-install-cmd": [
-      "@auto-scripts"
-    ],
-    "post-update-cmd": [
-      "@auto-scripts"
-    ],
-    "auto-scripts": {
-      "cache:clear": "symfony-cmd",
-      "assets:install": "symfony-cmd"
-    }
-  },
-  "extra": {
-    "symfony": {
-      "allow-contrib": false,
-      "require": "7.2"
-    }
+    "test": "phpunit",
+    "stan": "phpstan analyse --memory-limit=512M",
+    "cs": "php-cs-fixer fix --dry-run --diff",
+    "cs:fix": "php-cs-fixer fix",
+    "migrate": "php bin/console app:db:migrate"
   }
 }

@@ -1,0 +1,197 @@
+openapi: 3.0.3
+info:
+  title: Art catalogue API
+  version: 2.0.0
+  description: Read-only catalogue of artworks with taxonomies, full-text search and query logging.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/art/all:
+    get:
+      summary: List all artworks
+      parameters: [{$ref: '#/components/parameters/page'}, {$ref: '#/components/parameters/limit'}]
+      responses: {'200': {$ref: '#/components/responses/ArtworkPage'}, '400': {$ref: '#/components/responses/Problem'}}
+  /api/art/all/{id}:
+    get:
+      summary: One artwork
+      parameters: [{$ref: '#/components/parameters/id'}]
+      responses:
+        '200':
+          description: The artwork
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: {type: boolean}
+                  record: {$ref: '#/components/schemas/Artwork'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /api/art/{dimension}/{id}:
+    get:
+      summary: Artworks of one author / form / location / school / timeframe / type
+      parameters:
+        - {$ref: '#/components/parameters/dimension'}
+        - {$ref: '#/components/parameters/id'}
+        - {$ref: '#/components/parameters/page'}
+        - {$ref: '#/components/parameters/limit'}
+      responses: {'200': {$ref: '#/components/responses/ArtworkPage'}, '404': {$ref: '#/components/responses/Problem'}}
+  /api/info/{dimension}:
+    get:
+      summary: Taxonomy rows that have artworks, with counts and a feature image URL
+      parameters:
+        - {$ref: '#/components/parameters/dimension'}
+        - {$ref: '#/components/parameters/page'}
+        - {$ref: '#/components/parameters/limit'}
+      responses: {'200': {$ref: '#/components/responses/TaxonomyPage'}}
+  /api/info/{dimension}/{id}:
+    get:
+      summary: One taxonomy row
+      parameters: [{$ref: '#/components/parameters/dimension'}, {$ref: '#/components/parameters/id'}]
+      responses: {'200': {description: The row}, '404': {$ref: '#/components/responses/Problem'}}
+  /api/info/author/{letter}:
+    get:
+      summary: Authors whose name starts with a letter (case-insensitive)
+      parameters:
+        - {name: letter, in: path, required: true, schema: {type: string, pattern: '^[a-zA-Z]$'}}
+        - {$ref: '#/components/parameters/page'}
+        - {$ref: '#/components/parameters/limit'}
+      responses: {'200': {$ref: '#/components/responses/TaxonomyPage'}}
+  /api/search:
+    get:
+      summary: Full-text search over title, technique and author name
+      description: Supports quoted phrases, `or` and `-exclusion`. May be combined with the filter parameters.
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, maxLength: 200}}
+        - {$ref: '#/components/parameters/page'}
+        - {$ref: '#/components/parameters/limit'}
+        - {name: au, in: query, schema: {type: integer, minimum: 0}}
+        - {name: fo, in: query, schema: {type: integer, minimum: 0}}
+        - {name: lo, in: query, schema: {type: integer, minimum: 0}}
+        - {name: sc, in: query, schema: {type: integer, minimum: 0}}
+        - {name: ti, in: query, schema: {type: integer, minimum: 0}}
+        - {name: ty, in: query, schema: {type: integer, minimum: 0}}
+      responses: {'200': {$ref: '#/components/responses/ArtworkPage'}, '400': {$ref: '#/components/responses/Problem'}}
+  /api/filter:
+    get:
+      summary: Filter artworks by taxonomy ids (at least one of au, fo, lo, sc, ti, ty)
+      parameters:
+        - {$ref: '#/components/parameters/page'}
+        - {$ref: '#/components/parameters/limit'}
+        - {name: au, in: query, schema: {type: integer, minimum: 0}}
+        - {name: fo, in: query, schema: {type: integer, minimum: 0}}
+        - {name: lo, in: query, schema: {type: integer, minimum: 0}}
+        - {name: sc, in: query, schema: {type: integer, minimum: 0}}
+        - {name: ti, in: query, schema: {type: integer, minimum: 0}}
+        - {name: ty, in: query, schema: {type: integer, minimum: 0}}
+      responses: {'200': {$ref: '#/components/responses/ArtworkPage'}, '400': {$ref: '#/components/responses/Problem'}}
+  /api/random:
+    get:
+      summary: Random artworks (not cached)
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 1}}
+      responses: {'200': {description: Random artworks}}
+  /api/logger:
+    post:
+      summary: Record a client-side event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category, value]
+              properties:
+                category: {type: string, pattern: '^[A-Za-z0-9_.:-]{1,50}$'}
+                value: {type: string, minLength: 1, maxLength: 1000}
+      responses:
+        '201': {description: Logged}
+        '400': {$ref: '#/components/responses/Problem'}
+        '429': {$ref: '#/components/responses/Problem'}
+  /api/logs:
+    get:
+      summary: Read the query log (requires X-API-Key; 404 when LOGS_API_KEY is unset)
+      security: [{ApiKey: []}]
+      parameters:
+        - {name: category, in: query, schema: {type: string}}
+        - {$ref: '#/components/parameters/page'}
+        - {$ref: '#/components/parameters/limit'}
+      responses: {'200': {description: Log page}, '401': {$ref: '#/components/responses/Problem'}}
+  /api/health:
+    get: {summary: Liveness (no database access), responses: {'200': {description: ok}}}
+  /api/health/ready:
+    get: {summary: Readiness (checks the database), responses: {'200': {description: ready}, '503': {$ref: '#/components/responses/Problem'}}}
+components:
+  securitySchemes:
+    ApiKey: {type: apiKey, in: header, name: X-API-Key}
+  parameters:
+    page: {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 10000, default: 1}}
+    limit: {name: limit, in: query, description: Values above 100 are clamped to 100, schema: {type: integer, minimum: 1, default: 10}}
+    id: {name: id, in: path, required: true, schema: {type: integer, minimum: 1}}
+    dimension:
+      name: dimension
+      in: path
+      required: true
+      schema: {type: string, enum: [author, form, location, school, timeframe, type]}
+  responses:
+    Problem:
+      description: RFC 9457 problem details
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    ArtworkPage:
+      description: A page of artworks
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: {type: boolean}
+              records: {type: array, items: {$ref: '#/components/schemas/Artwork'}}
+              pagination: {$ref: '#/components/schemas/Pagination'}
+    TaxonomyPage:
+      description: A page of taxonomy rows
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: {type: boolean}
+              records: {type: array, items: {type: object, additionalProperties: true}}
+              pagination: {$ref: '#/components/schemas/Pagination'}
+  schemas:
+    Pagination:
+      type: object
+      properties:
+        total: {type: integer}
+        page: {type: integer}
+        limit: {type: integer}
+        pages: {type: integer}
+    Problem:
+      type: object
+      properties:
+        type: {type: string, example: about:blank}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        success: {type: boolean, example: false}
+    Artwork:
+      type: object
+      properties:
+        id: {type: integer}
+        title: {type: string}
+        date: {type: string}
+        technique: {type: string}
+        url: {type: string}
+        author_id: {type: integer}
+        author: {type: string}
+        born_died: {type: string}
+        form_id: {type: integer}
+        form: {type: string}
+        location_id: {type: integer}
+        location: {type: string}
+        school_id: {type: integer}
+        school: {type: string}
+        timeframe_id: {type: integer}
+        timeframe: {type: string}
+        type_id: {type: integer}
+        type: {type: string}
