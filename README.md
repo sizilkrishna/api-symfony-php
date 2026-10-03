@@ -97,12 +97,15 @@ The functional tests boot the real kernel, migrate the `DATABASE_URL` from `.env
 
 ```bash
 sudo -u postgres psql   #connect via admin
+```
+```sql
 CREATE USER mercurial WITH PASSWORD 'qwe';
 CREATE DATABASE symfony_api OWNER mercurial;
 GRANT ALL PRIVILEGES ON DATABASE symfony_api TO mercurial;
+```
+```bash
 pg_restore -U mercurial -d symfony_api migrations/symfony_api_data.dump
 php bin/console app:db:migrate
-
 #    pg_dump -U mercurial -d symfony_api -F c -b -f symfony_api_data.dump
 ```
 
