@@ -95,12 +95,14 @@ The functional tests boot the real kernel, migrate the `DATABASE_URL` from `.env
 
 **Database.** Run `php bin/console app:db:migrate`. If you have the old quoted upper-case schema (`"ART"`, `"AUTHOR_ID"`, …), migration `0001` renames everything to lower case in place, `0002` adds the generated search vectors, indexes and foreign keys, and `0003` installs `update_feature_images()`. Back up first. `log_table."timestamp"` becomes `created_at`; the stray `search_artdata` / `get_author_stats` SQL functions are gone.
 
-sudo -u postgres psql
+```bash
+sudo -u postgres psql   #connect via admin
 CREATE USER mercurial WITH PASSWORD 'qwe';
 CREATE DATABASE symfony_api OWNER mercurial;
 GRANT ALL PRIVILEGES ON DATABASE symfony_api TO mercurial;
 
-pg_dump -U mercurial -d symfony_api -F c -b -f symfony_api_data.dump
+pg_dump -U mercurial -d symfony_api -F c -b -f symfony_api_data.dump    #data dumped
+```
 
 **API changes**
 
