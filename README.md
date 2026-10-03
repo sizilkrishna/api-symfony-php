@@ -100,8 +100,10 @@ sudo -u postgres psql   #connect via admin
 CREATE USER mercurial WITH PASSWORD 'qwe';
 CREATE DATABASE symfony_api OWNER mercurial;
 GRANT ALL PRIVILEGES ON DATABASE symfony_api TO mercurial;
+pg_restore -U mercurial -d symfony_api migrations/symfony_api_data.dump
+php bin/console app:db:migrate
 
-pg_dump -U mercurial -d symfony_api -F c -b -f symfony_api_data.dump    #data dumped
+#    pg_dump -U mercurial -d symfony_api -F c -b -f symfony_api_data.dump
 ```
 
 **API changes**
