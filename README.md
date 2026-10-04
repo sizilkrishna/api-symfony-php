@@ -20,6 +20,7 @@ composer install
 printf 'APP_ENV=dev\nDATABASE_URL="postgresql://USER:PASS@127.0.0.1:5432/mgoart"\n' > .env.local
 php bin/console app:db:migrate
 php -S 127.0.0.1:8000 -t public
+#OR    symfony serve
 ```
 
 Requires PHP 8.2+ with `pdo_pgsql` and `mbstring`.
